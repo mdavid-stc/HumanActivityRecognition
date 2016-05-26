@@ -1,0 +1,166 @@
+---
+title: 'Human Activity Recognition'
+output:
+  html_document:
+    keep_md: yes
+    self_contained: no
+---
+This is the course project for Practical Machine Learning.
+
+## Loading and preprocessing the data
+The data is assumed to be in a zip file in the same directory as this document. If it is not, download it and read it into a data frame.
+```{r}
+knitr::opts_chunk$set(fig.path='figure/')
+options(scipen = 1, digits = 2)
+
+setwd("/Training/DataScience/gitwork/Sec8Proj1")
+
+# Check for the presence of the data.
+trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+trainfn <- "pml-training.csv"
+
+# Make sure the data is available in the current directory.
+if (!file.exists(trainfn)) {
+    # Download the data file
+    download.file(trainUrl, trainfn, "curl")
+}
+
+training <- read.csv(trainfn, na.strings=c("NA",""))
+
+# Check for the presence of the data.
+testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+testfn <- "pml-testing.csv"
+
+# Make sure the data is available in the current directory.
+if (!file.exists(testfn)) {
+    # Download the data file
+    download.file(testUrl, testfn, "curl")
+}
+
+testing <- read.csv(testfn, na.strings=c("NA",""))
+```
+
+Comparing the training set names to the testing set names (the only thing I looked at in the test set before predicting), we see that the outcome variable in the training set ("classe") is replaced by a "problem_id" variable in the testing set to give us a way to refer to specific rows in our prediction.
+The training set is `r nrow(training)` observations, which is quite a lot when we're predicting only `r nrow(testing)` test cases, so we have some room to drop troublesome observations and to subset for testing.
+
+Looking at the summaries of the training variables, some are obviously poor, so remove these (and also remove from testing so that the two sets are still comparable).
+
+```{r}
+# The row index, user's name, and timestamps cannot have predictive value.
+badvars <- c(1:5)
+# There is not enough variation in new_window to help, so we'll exclude that also.
+badvars <- c(badvars, 6)
+# Many variables are ~98% NA or blank, so remove them.
+for (i in 1:length(training)) {
+    if (sum(is.na(training[i])) >= (nrow(training)*0.95)) {
+        badvars <- c(badvars, i)
+    }
+}
+
+training <- training[, -badvars]
+testing <- testing[, -badvars]
+# Down to 54 variables.
+```
+
+A side effect of trimming down the data has gotten rid of all NA values in the data set. All of the remaining `r length(training)` variables are numeric or integer types (except the 5-level outcome, classe), and they are all complete (that is, we did not sacrifice any rows in the above data reduction).
+
+
+## Building a model
+
+Now split the training set into a further train/test set since we're not allowed to figure this out using the real testing data (and we have plenty of observations.
+
+```{r}
+library(caret)
+library(ggplot2)
+set.seed(777)
+
+# First, check that there are enough samples in each outcome class.
+table(training$classe)
+
+# A fairly even split, so partitioning won't have any problems.
+trainIndex <- createDataPartition(training$classe, p = 0.75, list = FALSE)
+subtrain <- training[trainIndex, ]
+subtest <- training[-trainIndex, ]
+```
+
+Since we're predicting a factor variable, a Decision Tree would be an appropriate tool, but due to the complexity of this problem, a Random Forest will almost certainly be better. Use 5-fold cross validation to try to make sure we are not overfitting.
+
+```{r}
+# This was taking a long time, so I added allowParallel.
+fit1 <- train(classe ~ ., data=subtrain, method="rf", trControl=trainControl(method="cv", number=5), allowParallel=TRUE)
+# Do I need prox=TRUE?
+fit1
+fit1$finalModel
+```
+
+Theoretically, that is an excellent model, with >99% accuracy. Let's take a look at how it performs on the sub-testing data.
+```{r}
+subpred <- predict(fit1, newdata=subtest)
+confusionMatrix(subpred, subtest$classe)
+```
+
+Again, fantastic numbers (only 9 wrong out of 4904, 99.8% accurate), so I don't feel a need to adjust the model (which we could still do at this point since we still haven't looked at the real test data), but let's look into the elements of the model a bit further.
+
+
+## Variable Importance
+
+Now that we have our model, let's find out which variables are most important.
+```{r}
+varImp(fit1, scale=FALSE)
+```
+Unexpectedly, the num_window variable is hugely significant (more than 50% more important than the next)!
+
+
+## Plots of Important Predictors
+
+Let's look at plots of the three most important variables to see how they relate to the outcome.
+```{r}
+qplot(x=num_window, y=roll_belt, data = subtrain, col=classe)
+qplot(x=num_window, y=pitch_forearm, data = subtrain, col=classe)
+qplot(x=roll_belt, y=pitch_forearm, data = subtrain, col=classe)
+```
+
+The second plot especially shows a very strong correlation of num_window with classe *regardless of the y variable*.
+
+
+## Single-Variable Model
+
+Since one general goal is always to make our models as parsimonious as possible, let's try a model using just that predictor.
+
+```{r}
+fit2 <- train(classe ~ num_window, data=subtrain, method="rf", trControl=trainControl(method="cv", number=5), allowParallel=TRUE)
+fit2
+fit2$finalModel
+subpred2 <- predict(fit2, newdata=subtest)
+confusionMatrix(subpred2, subtest$classe)
+```
+
+It turns out that num_window on its own is an almost perfect predictor, misclassifying only two observations in our (sub)training set and only one observation in the (sub)test set.
+
+Given the data partitioning and cross validation used, the expected out of sample error is less than 0.01%.
+
+
+## Dropping the Window Number
+
+The num_window variable is not one of the features talked about in the description of the data collection setup and doesn't seem to be a measured variable, so it's likely that it's not meant to be used for predicting. So let's build one more model without it.
+```{r}
+subtrain$num_window <- NULL
+subtest$num_window <- NULL
+fit3 <- train(classe ~ ., data=subtrain, method="rf", trControl=trainControl(method="cv", number=5), allowParallel=TRUE)
+fit3
+fit3$finalModel
+```
+
+This model's accuracy was not as good, but still >99% so still more than good enough.
+
+
+## Final Prediction
+
+Now we're ready to look at the test set.
+```{r}
+prediction <- predict(fit3, newdata=testing)
+```
+
+So the final prediction for the project is:
+`r data.frame(testing$problem_id, prediction)`
+
