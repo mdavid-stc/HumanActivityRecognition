@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+
+
+
+<title>Human Activity Recognition</title>
+
+<script src="HAR_files/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="HAR_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="HAR_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="HAR_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="HAR_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<link rel="stylesheet"
+      href="HAR_files/highlight/default.css"
+      type="text/css" />
+<script src="HAR_files/highlight/highlight.js"></script>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs && document.readyState && document.readyState === "complete") {
+   window.setTimeout(function() {
+      hljs.initHighlighting();
+   }, 0);
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+</head>
+
+<body>
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+</style>
+
+
+<div class="container-fluid main-container">
+
+<!-- tabsets -->
+<script src="HAR_files/navigation-1.0/tabsets.js"></script>
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+</script>
+
+<!-- code folding -->
+
+
+
+
+
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Human Activity Recognition</h1>
+
+</div>
+
+
+<p>This is the course project for Practical Machine Learning.</p>
+<div id="loading-and-preprocessing-the-data" class="section level2">
+<h2>Loading and preprocessing the data</h2>
+<p>The data is assumed to be in a zip file in the same directory as this document. If it is not, download it and read it into a data frame.</p>
+<pre class="r"><code>knitr::opts_chunk$set(fig.path=&#39;figure/&#39;)
+options(scipen = 1, digits = 2)
+
+setwd(&quot;/Training/DataScience/gitwork/Sec8Proj1&quot;)
+
+# Check for the presence of the data.
+trainUrl &lt;- &quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv&quot;
+trainfn &lt;- &quot;pml-training.csv&quot;
+
+# Make sure the data is available in the current directory.
+if (!file.exists(trainfn)) {
+    # Download the data file
+    download.file(trainUrl, trainfn, &quot;curl&quot;)
+}
+
+training &lt;- read.csv(trainfn, na.strings=c(&quot;NA&quot;,&quot;&quot;))
+
+# Check for the presence of the data.
+testUrl &lt;- &quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv&quot;
+testfn &lt;- &quot;pml-testing.csv&quot;
+
+# Make sure the data is available in the current directory.
+if (!file.exists(testfn)) {
+    # Download the data file
+    download.file(testUrl, testfn, &quot;curl&quot;)
+}
+
+testing &lt;- read.csv(testfn, na.strings=c(&quot;NA&quot;,&quot;&quot;))</code></pre>
+<p>Comparing the training set names to the testing set names (the only thing I looked at in the test set before predicting), we see that the outcome variable in the training set (“classe”) is replaced by a “problem_id” variable in the testing set to give us a way to refer to specific rows in our prediction. The training set is 19622 observations, which is quite a lot when we’re predicting only 20 test cases, so we have some room to drop troublesome observations and to subset for testing.</p>
+<p>Looking at the summaries of the training variables, some are obviously poor, so remove these (and also remove from testing so that the two sets are still comparable).</p>
+<pre class="r"><code># The row index, user&#39;s name, and timestamps cannot have predictive value.
+badvars &lt;- c(1:5)
+# There is not enough variation in new_window to help, so we&#39;ll exclude that also.
+badvars &lt;- c(badvars, 6)
+# Many variables are ~98% NA or blank, so remove them.
+for (i in 1:length(training)) {
+    if (sum(is.na(training[i])) &gt;= (nrow(training)*0.95)) {
+        badvars &lt;- c(badvars, i)
+    }
+}
+
+training &lt;- training[, -badvars]
+testing &lt;- testing[, -badvars]
+# Down to 54 variables.</code></pre>
+<p>A side effect of trimming down the data has gotten rid of all NA values in the data set. All of the remaining 54 variables are numeric or integer types (except the 5-level outcome, classe), and they are all complete (that is, we did not sacrifice any rows in the above data reduction).</p>
+</div>
+<div id="building-a-model" class="section level2">
+<h2>Building a model</h2>
+<p>Now split the training set into a further train/test set since we’re not allowed to figure this out using the real testing data (and we have plenty of observations.</p>
+<pre class="r"><code>library(caret)</code></pre>
+<pre><code>## Loading required package: lattice</code></pre>
+<pre><code>## Loading required package: ggplot2</code></pre>
+<pre class="r"><code>library(ggplot2)
+set.seed(777)
+
+# First, check that there are enough samples in each outcome class.
+table(training$classe)</code></pre>
+<pre><code>## 
+##    A    B    C    D    E 
+## 5580 3797 3422 3216 3607</code></pre>
+<pre class="r"><code># A fairly even split, so partitioning won&#39;t have any problems.
+trainIndex &lt;- createDataPartition(training$classe, p = 0.75, list = FALSE)
+subtrain &lt;- training[trainIndex, ]
+subtest &lt;- training[-trainIndex, ]</code></pre>
+<p>Since we’re predicting a factor variable, a Decision Tree would be an appropriate tool, but due to the complexity of this problem, a Random Forest will almost certainly be better. Use 5-fold cross validation to try to make sure we are not overfitting.</p>
+<pre class="r"><code># This was taking a long time, so I added allowParallel.
+fit1 &lt;- train(classe ~ ., data=subtrain, method=&quot;rf&quot;, trControl=trainControl(method=&quot;cv&quot;, number=5), allowParallel=TRUE)</code></pre>
+<pre><code>## Loading required package: randomForest</code></pre>
+<pre><code>## randomForest 4.6-12</code></pre>
+<pre><code>## Type rfNews() to see new features/changes/bug fixes.</code></pre>
+<pre><code>## 
+## Attaching package: &#39;randomForest&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:ggplot2&#39;:
+## 
+##     margin</code></pre>
+<pre class="r"><code># Do I need prox=TRUE?
+fit1</code></pre>
+<pre><code>## Random Forest 
+## 
+## 14718 samples
+##    53 predictor
+##     5 classes: &#39;A&#39;, &#39;B&#39;, &#39;C&#39;, &#39;D&#39;, &#39;E&#39; 
+## 
+## No pre-processing
+## Resampling: Cross-Validated (5 fold) 
+## Summary of sample sizes: 11776, 11776, 11774, 11773, 11773 
+## Resampling results across tuning parameters:
+## 
+##   mtry  Accuracy  Kappa
+##    2    0.99      0.99 
+##   27    1.00      1.00 
+##   53    1.00      0.99 
+## 
+## Accuracy was used to select the optimal model using  the largest value.
+## The final value used for the model was mtry = 27.</code></pre>
+<pre class="r"><code>fit1$finalModel</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(x = x, y = y, mtry = param$mtry, allowParallel = TRUE) 
+##                Type of random forest: classification
+##                      Number of trees: 500
+## No. of variables tried at each split: 27
+## 
+##         OOB estimate of  error rate: 0.26%
+## Confusion matrix:
+##      A    B    C    D    E class.error
+## A 4183    1    0    0    1     0.00048
+## B    7 2837    3    1    0     0.00386
+## C    0    6 2560    1    0     0.00273
+## D    0    0   12 2399    1     0.00539
+## E    0    1    0    4 2701     0.00185</code></pre>
+<p>Theoretically, that is an excellent model, with &gt;99% accuracy. Let’s take a look at how it performs on the sub-testing data.</p>
+<pre class="r"><code>subpred &lt;- predict(fit1, newdata=subtest)
+confusionMatrix(subpred, subtest$classe)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 1395    2    0    0    0
+##          B    0  946    1    0    0
+##          C    0    1  854    5    0
+##          D    0    0    0  799    0
+##          E    0    0    0    0  901
+## 
+## Overall Statistics
+##                                         
+##                Accuracy : 0.998         
+##                  95% CI : (0.997, 0.999)
+##     No Information Rate : 0.284         
+##     P-Value [Acc &gt; NIR] : &lt;2e-16        
+##                                         
+##                   Kappa : 0.998         
+##  Mcnemar&#39;s Test P-Value : NA            
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity             1.000    0.997    0.999    0.994    1.000
+## Specificity             0.999    1.000    0.999    1.000    1.000
+## Pos Pred Value          0.999    0.999    0.993    1.000    1.000
+## Neg Pred Value          1.000    0.999    1.000    0.999    1.000
+## Prevalence              0.284    0.194    0.174    0.164    0.184
+## Detection Rate          0.284    0.193    0.174    0.163    0.184
+## Detection Prevalence    0.285    0.193    0.175    0.163    0.184
+## Balanced Accuracy       1.000    0.998    0.999    0.997    1.000</code></pre>
+<p>Again, fantastic numbers (only 9 wrong out of 4904, 99.8% accurate), so I don’t feel a need to adjust the model (which we could still do at this point since we still haven’t looked at the real test data), but let’s look into the elements of the model a bit further.</p>
+</div>
+<div id="variable-importance" class="section level2">
+<h2>Variable Importance</h2>
+<p>Now that we have our model, let’s find out which variables are most important.</p>
+<pre class="r"><code>varImp(fit1, scale=FALSE)</code></pre>
+<pre><code>## rf variable importance
+## 
+##   only 20 most important variables shown (out of 53)
+## 
+##                      Overall
+## num_window              2183
+## roll_belt               1351
+## pitch_forearm            874
+## yaw_belt                 648
+## magnet_dumbbell_y        627
+## magnet_dumbbell_z        618
+## pitch_belt               593
+## roll_forearm             507
+## accel_dumbbell_y         308
+## magnet_dumbbell_x        246
+## accel_belt_z             236
+## roll_dumbbell            234
+## accel_forearm_x          226
+## total_accel_dumbbell     197
+## magnet_forearm_z         172
+## accel_dumbbell_z         170
+## magnet_belt_y            170
+## magnet_belt_z            159
+## magnet_belt_x            138
+## yaw_dumbbell             118</code></pre>
+<p>Unexpectedly, the num_window variable is hugely significant (more than 50% more important than the next)!</p>
+</div>
+<div id="plots-of-important-predictors" class="section level2">
+<h2>Plots of Important Predictors</h2>
+<p>Let’s look at plots of the three most important variables to see how they relate to the outcome.</p>
+<pre class="r"><code>qplot(x=num_window, y=roll_belt, data = subtrain, col=classe)</code></pre>
+<p><img src="figure/unnamed-chunk-7-1.png" alt="" /><!-- --></p>
+<pre class="r"><code>qplot(x=num_window, y=pitch_forearm, data = subtrain, col=classe)</code></pre>
+<p><img src="figure/unnamed-chunk-7-2.png" alt="" /><!-- --></p>
+<pre class="r"><code>qplot(x=roll_belt, y=pitch_forearm, data = subtrain, col=classe)</code></pre>
+<p><img src="figure/unnamed-chunk-7-3.png" alt="" /><!-- --></p>
+<p>The second plot especially shows a very strong correlation of num_window with classe <em>regardless of the y variable</em>.</p>
+</div>
+<div id="single-variable-model" class="section level2">
+<h2>Single-Variable Model</h2>
+<p>Since one general goal is always to make our models as parsimonious as possible, let’s try a model using just that predictor.</p>
+<pre class="r"><code># Doesn&#39;t make sense to cross validate with one variable, so that option is off here.
+fit2 &lt;- train(classe ~ num_window, data=subtrain, method=&quot;rf&quot;, allowParallel=TRUE)</code></pre>
+<pre><code>## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range
+
+## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
+## mtry: reset to within valid range</code></pre>
+<pre class="r"><code>fit2</code></pre>
+<pre><code>## Random Forest 
+## 
+## 14718 samples
+##    53 predictor
+##     5 classes: &#39;A&#39;, &#39;B&#39;, &#39;C&#39;, &#39;D&#39;, &#39;E&#39; 
+## 
+## No pre-processing
+## Resampling: Bootstrapped (25 reps) 
+## Summary of sample sizes: 14718, 14718, 14718, 14718, 14718, 14718, ... 
+## Resampling results:
+## 
+##   Accuracy  Kappa
+##   1         1    
+## 
+## Tuning parameter &#39;mtry&#39; was held constant at a value of 2
+## </code></pre>
+<pre class="r"><code>fit2$finalModel</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(x = x, y = y, mtry = param$mtry, allowParallel = TRUE) 
+##                Type of random forest: classification
+##                      Number of trees: 500
+## No. of variables tried at each split: 1
+## 
+##         OOB estimate of  error rate: 0.01%
+## Confusion matrix:
+##      A    B    C    D    E class.error
+## A 4185    0    0    0    0     0.00000
+## B    0 2847    1    0    0     0.00035
+## C    0    0 2567    0    0     0.00000
+## D    0    0    0 2412    0     0.00000
+## E    0    0    0    1 2705     0.00037</code></pre>
+<pre class="r"><code>subpred2 &lt;- predict(fit2, newdata=subtest)
+confusionMatrix(subpred2, subtest$classe)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 1395    0    0    0    0
+##          B    0  948    0    0    0
+##          C    0    0  855    0    0
+##          D    0    0    0  804    0
+##          E    0    1    0    0  901
+## 
+## Overall Statistics
+##                                     
+##                Accuracy : 1         
+##                  95% CI : (0.999, 1)
+##     No Information Rate : 0.284     
+##     P-Value [Acc &gt; NIR] : &lt;2e-16    
+##                                     
+##                   Kappa : 1         
+##  Mcnemar&#39;s Test P-Value : NA        
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity             1.000    0.999    1.000    1.000    1.000
+## Specificity             1.000    1.000    1.000    1.000    1.000
+## Pos Pred Value          1.000    1.000    1.000    1.000    0.999
+## Neg Pred Value          1.000    1.000    1.000    1.000    1.000
+## Prevalence              0.284    0.194    0.174    0.164    0.184
+## Detection Rate          0.284    0.193    0.174    0.164    0.184
+## Detection Prevalence    0.284    0.193    0.174    0.164    0.184
+## Balanced Accuracy       1.000    0.999    1.000    1.000    1.000</code></pre>
+<p>It turns out that num_window on its own is an almost perfect predictor, misclassifying only two observations in our (sub)training set and only one observation in the (sub)test set.</p>
+<p>Given the data partitioning and cross validation used, the expected out of sample error is very small (less than 0.01%).</p>
+</div>
+<div id="dropping-the-window-number-predictor" class="section level2">
+<h2>Dropping the Window Number Predictor</h2>
+<p>The num_window variable is not one of the features talked about in the description of the data collection setup and doesn’t seem to be a measured variable, so it’s likely that it’s not meant to be used for predicting. So let’s build one more model without it.</p>
+<pre class="r"><code>fit3 &lt;- train(classe ~ . - num_window, data=subtrain, method=&quot;rf&quot;, trControl=trainControl(method=&quot;cv&quot;, number=5), allowParallel=TRUE)
+fit3</code></pre>
+<pre><code>## Random Forest 
+## 
+## 14718 samples
+##    53 predictor
+##     5 classes: &#39;A&#39;, &#39;B&#39;, &#39;C&#39;, &#39;D&#39;, &#39;E&#39; 
+## 
+## No pre-processing
+## Resampling: Cross-Validated (5 fold) 
+## Summary of sample sizes: 11772, 11775, 11775, 11775, 11775 
+## Resampling results across tuning parameters:
+## 
+##   mtry  Accuracy  Kappa
+##    2    0.99      0.99 
+##   27    0.99      0.99 
+##   52    0.98      0.98 
+## 
+## Accuracy was used to select the optimal model using  the largest value.
+## The final value used for the model was mtry = 2.</code></pre>
+<pre class="r"><code>fit3$finalModel</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(x = x, y = y, mtry = param$mtry, allowParallel = TRUE) 
+##                Type of random forest: classification
+##                      Number of trees: 500
+## No. of variables tried at each split: 2
+## 
+##         OOB estimate of  error rate: 0.65%
+## Confusion matrix:
+##      A    B    C    D    E class.error
+## A 4182    1    1    0    1     0.00072
+## B   13 2830    5    0    0     0.00632
+## C    0   21 2542    4    0     0.00974
+## D    0    0   43 2367    2     0.01866
+## E    0    0    0    4 2702     0.00148</code></pre>
+<pre class="r"><code>subpred3 &lt;- predict(fit3, newdata=subtest)
+confusionMatrix(subpred3, subtest$classe)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 1392    7    0    0    0
+##          B    0  941    9    0    0
+##          C    3    1  846   18    0
+##          D    0    0    0  786    1
+##          E    0    0    0    0  900
+## 
+## Overall Statistics
+##                                         
+##                Accuracy : 0.992         
+##                  95% CI : (0.989, 0.994)
+##     No Information Rate : 0.284         
+##     P-Value [Acc &gt; NIR] : &lt;2e-16        
+##                                         
+##                   Kappa : 0.99          
+##  Mcnemar&#39;s Test P-Value : NA            
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity             0.998    0.992    0.989    0.978    0.999
+## Specificity             0.998    0.998    0.995    1.000    1.000
+## Pos Pred Value          0.995    0.991    0.975    0.999    1.000
+## Neg Pred Value          0.999    0.998    0.998    0.996    1.000
+## Prevalence              0.284    0.194    0.174    0.164    0.184
+## Detection Rate          0.284    0.192    0.173    0.160    0.184
+## Detection Prevalence    0.285    0.194    0.177    0.160    0.184
+## Balanced Accuracy       0.998    0.995    0.992    0.989    0.999</code></pre>
+<p>This model’s accuracy was not as good, but still &gt;99% so still more than good enough.</p>
+</div>
+<div id="final-prediction" class="section level2">
+<h2>Final Prediction</h2>
+<p>Now we’re ready to look at the test set. So the final prediction for the project is:</p>
+<pre class="r"><code>prediction &lt;- predict(fit3, newdata=testing)
+data.frame(testing$problem_id, prediction)</code></pre>
+<pre><code>##    testing.problem_id prediction
+## 1                   1          B
+## 2                   2          A
+## 3                   3          B
+## 4                   4          A
+## 5                   5          A
+## 6                   6          E
+## 7                   7          D
+## 8                   8          B
+## 9                   9          A
+## 10                 10          A
+## 11                 11          B
+## 12                 12          C
+## 13                 13          B
+## 14                 14          A
+## 15                 15          E
+## 16                 16          E
+## 17                 17          A
+## 18                 18          B
+## 19                 19          B
+## 20                 20          B</code></pre>
+<p>As expected, the prediction is perfect (20 for 20)!</p>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+$(document).ready(function () {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+});
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
