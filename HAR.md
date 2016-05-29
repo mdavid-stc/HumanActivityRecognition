@@ -2,13 +2,11 @@
 This is the course project for Practical Machine Learning.
 
 ## Loading and preprocessing the data
-The data is assumed to be in a zip file in the same directory as this document. If it is not, download it and read it into a data frame.
+The data is assumed to be in a CSV file in the same directory as this document. If it is not, download it and read it into a data frame.
 
 ```r
 knitr::opts_chunk$set(fig.path='figure/')
 options(scipen = 1, digits = 2)
-
-setwd("/Training/DataScience/gitwork/Sec8Proj1")
 
 # Check for the presence of the data.
 trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
@@ -63,25 +61,17 @@ A side effect of trimming down the data has gotten rid of all NA values in the d
 
 ## Building a model
 
-Now split the training set into a further train/test set since we're not allowed to figure this out using the real testing data (and we have plenty of observations.
+Now split the training set into a further train/test set since we're not allowed to figure this out using the real testing data (and we have plenty of observations).
 
 
 ```r
 library(caret)
-```
-
-```
-## Loading required package: lattice
-```
-
-```
-## Loading required package: ggplot2
-```
-
-```r
 library(ggplot2)
 set.seed(777)
+```
 
+
+```r
 # First, check that there are enough samples in each outcome class.
 table(training$classe)
 ```
@@ -99,39 +89,17 @@ subtrain <- training[trainIndex, ]
 subtest <- training[-trainIndex, ]
 ```
 
-Since we're predicting a factor variable, a Decision Tree would be an appropriate tool, but due to the complexity of this problem, a Random Forest will almost certainly be better. Use 5-fold cross validation to try to make sure we are not overfitting.
+Since we're predicting a factor variable, a Decision Tree would be an appropriate tool, but due to the complexity of this problem, a Random Forest will almost certainly be better. Use 5-fold cross validation to reduce overfitting.
 
 
 ```r
 # This was taking a long time, so I added allowParallel.
 fit1 <- train(classe ~ ., data=subtrain, method="rf", trControl=trainControl(method="cv", number=5), allowParallel=TRUE)
+# Do I need prox=TRUE?
 ```
 
-```
-## Loading required package: randomForest
-```
-
-```
-## randomForest 4.6-12
-```
-
-```
-## Type rfNews() to see new features/changes/bug fixes.
-```
-
-```
-## 
-## Attaching package: 'randomForest'
-```
-
-```
-## The following object is masked from 'package:ggplot2':
-## 
-##     margin
-```
 
 ```r
-# Do I need prox=TRUE?
 fit1
 ```
 
@@ -268,19 +236,19 @@ Let's look at plots of the three most important variables to see how they relate
 qplot(x=num_window, y=roll_belt, data = subtrain, col=classe)
 ```
 
-![](figure/unnamed-chunk-7-1.png)<!-- -->
+![](figure/unnamed-chunk-9-1.png)<!-- -->
 
 ```r
 qplot(x=num_window, y=pitch_forearm, data = subtrain, col=classe)
 ```
 
-![](figure/unnamed-chunk-7-2.png)<!-- -->
+![](figure/unnamed-chunk-9-2.png)<!-- -->
 
 ```r
 qplot(x=roll_belt, y=pitch_forearm, data = subtrain, col=classe)
 ```
 
-![](figure/unnamed-chunk-7-3.png)<!-- -->
+![](figure/unnamed-chunk-9-3.png)<!-- -->
 
 The second plot especially shows a very strong correlation of num_window with classe *regardless of the y variable*.
 
@@ -293,89 +261,6 @@ Since one general goal is always to make our models as parsimonious as possible,
 ```r
 # Doesn't make sense to cross validate with one variable, so that option is off here.
 fit2 <- train(classe ~ num_window, data=subtrain, method="rf", allowParallel=TRUE)
-```
-
-```
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-```
-
-```r
 fit2
 ```
 

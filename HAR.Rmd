@@ -8,12 +8,10 @@ output:
 This is the course project for Practical Machine Learning.
 
 ## Loading and preprocessing the data
-The data is assumed to be in a zip file in the same directory as this document. If it is not, download it and read it into a data frame.
+The data is assumed to be in a CSV file in the same directory as this document. If it is not, download it and read it into a data frame.
 ```{r}
 knitr::opts_chunk$set(fig.path='figure/')
 options(scipen = 1, digits = 2)
-
-setwd("/Training/DataScience/gitwork/Sec8Proj1")
 
 # Check for the presence of the data.
 trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
@@ -67,13 +65,15 @@ A side effect of trimming down the data has gotten rid of all NA values in the d
 
 ## Building a model
 
-Now split the training set into a further train/test set since we're not allowed to figure this out using the real testing data (and we have plenty of observations.
+Now split the training set into a further train/test set since we're not allowed to figure this out using the real testing data (and we have plenty of observations).
 
-```{r}
+```{r message=FALSE}
 library(caret)
 library(ggplot2)
 set.seed(777)
+```
 
+```{r message=FALSE}
 # First, check that there are enough samples in each outcome class.
 table(training$classe)
 
@@ -83,12 +83,15 @@ subtrain <- training[trainIndex, ]
 subtest <- training[-trainIndex, ]
 ```
 
-Since we're predicting a factor variable, a Decision Tree would be an appropriate tool, but due to the complexity of this problem, a Random Forest will almost certainly be better. Use 5-fold cross validation to try to make sure we are not overfitting.
+Since we're predicting a factor variable, a Decision Tree would be an appropriate tool, but due to the complexity of this problem, a Random Forest will almost certainly be better. Use 5-fold cross validation to reduce overfitting.
 
-```{r}
+```{r message=FALSE}
 # This was taking a long time, so I added allowParallel.
 fit1 <- train(classe ~ ., data=subtrain, method="rf", trControl=trainControl(method="cv", number=5), allowParallel=TRUE)
 # Do I need prox=TRUE?
+```
+
+```{r message=FALSE}
 fit1
 fit1$finalModel
 ```
@@ -127,8 +130,9 @@ The second plot especially shows a very strong correlation of num_window with cl
 
 Since one general goal is always to make our models as parsimonious as possible, let's try a model using just that predictor.
 
-```{r}
-fit2 <- train(classe ~ num_window, data=subtrain, method="rf", trControl=trainControl(method="cv", number=5), allowParallel=TRUE)
+```{r warning=FALSE}
+# Doesn't make sense to cross validate with one variable, so that option is off here.
+fit2 <- train(classe ~ num_window, data=subtrain, method="rf", allowParallel=TRUE)
 fit2
 fit2$finalModel
 subpred2 <- predict(fit2, newdata=subtest)
@@ -137,18 +141,18 @@ confusionMatrix(subpred2, subtest$classe)
 
 It turns out that num_window on its own is an almost perfect predictor, misclassifying only two observations in our (sub)training set and only one observation in the (sub)test set.
 
-Given the data partitioning and cross validation used, the expected out of sample error is less than 0.01%.
+Given the data partitioning and cross validation used, the expected out of sample error is very small (less than 0.01%).
 
 
-## Dropping the Window Number
+## Dropping the Window Number Predictor
 
 The num_window variable is not one of the features talked about in the description of the data collection setup and doesn't seem to be a measured variable, so it's likely that it's not meant to be used for predicting. So let's build one more model without it.
 ```{r}
-subtrain$num_window <- NULL
-subtest$num_window <- NULL
-fit3 <- train(classe ~ ., data=subtrain, method="rf", trControl=trainControl(method="cv", number=5), allowParallel=TRUE)
+fit3 <- train(classe ~ . - num_window, data=subtrain, method="rf", trControl=trainControl(method="cv", number=5), allowParallel=TRUE)
 fit3
 fit3$finalModel
+subpred3 <- predict(fit3, newdata=subtest)
+confusionMatrix(subpred3, subtest$classe)
 ```
 
 This model's accuracy was not as good, but still >99% so still more than good enough.
@@ -157,10 +161,11 @@ This model's accuracy was not as good, but still >99% so still more than good en
 ## Final Prediction
 
 Now we're ready to look at the test set.
+So the final prediction for the project is:
 ```{r}
 prediction <- predict(fit3, newdata=testing)
+data.frame(testing$problem_id, prediction)
 ```
 
-So the final prediction for the project is:
-`r data.frame(testing$problem_id, prediction)`
+As expected, the prediction is perfect (20 for 20)!
 
