@@ -65,7 +65,7 @@ A side effect of trimming down the data has gotten rid of all NA values in the d
 
 ## Building a model
 
-Now split the training set into a further train/test set since we're not allowed to figure this out using the real testing data (and we have plenty of observations).
+Now split the training set into a further training and validation sets since we're not allowed to figure this out using the real testing data (and we have plenty of observations).
 
 ```{r message=FALSE}
 library(caret)
@@ -80,7 +80,7 @@ table(training$classe)
 # A fairly even split, so partitioning won't have any problems.
 trainIndex <- createDataPartition(training$classe, p = 0.75, list = FALSE)
 subtrain <- training[trainIndex, ]
-subtest <- training[-trainIndex, ]
+validate <- training[-trainIndex, ]
 ```
 
 Since we're predicting a factor variable, a Decision Tree would be an appropriate tool, but due to the complexity of this problem, a Random Forest will almost certainly be better. Use 5-fold cross validation to reduce overfitting.
@@ -96,10 +96,10 @@ fit1
 fit1$finalModel
 ```
 
-Theoretically, that is an excellent model, with >99% accuracy. Let's take a look at how it performs on the sub-testing data.
+Theoretically, that is an excellent model, with >99% accuracy. Let's take a look at how it performs on the validation data.
 ```{r}
-subpred <- predict(fit1, newdata=subtest)
-confusionMatrix(subpred, subtest$classe)
+subpred <- predict(fit1, newdata=validate)
+confusionMatrix(subpred, validate$classe)
 ```
 
 Again, fantastic numbers (only 9 wrong out of 4904, 99.8% accurate), so I don't feel a need to adjust the model (which we could still do at this point since we still haven't looked at the real test data), but let's look into the elements of the model a bit further.
@@ -135,8 +135,8 @@ Since one general goal is always to make our models as parsimonious as possible,
 fit2 <- train(classe ~ num_window, data=subtrain, method="rf", allowParallel=TRUE)
 fit2
 fit2$finalModel
-subpred2 <- predict(fit2, newdata=subtest)
-confusionMatrix(subpred2, subtest$classe)
+subpred2 <- predict(fit2, newdata=validate)
+confusionMatrix(subpred2, validate$classe)
 ```
 
 It turns out that num_window on its own is an almost perfect predictor, misclassifying only two observations in our (sub)training set and only one observation in the (sub)test set.
@@ -151,8 +151,8 @@ The num_window variable is not one of the features talked about in the descripti
 fit3 <- train(classe ~ . - num_window, data=subtrain, method="rf", trControl=trainControl(method="cv", number=5), allowParallel=TRUE)
 fit3
 fit3$finalModel
-subpred3 <- predict(fit3, newdata=subtest)
-confusionMatrix(subpred3, subtest$classe)
+subpred3 <- predict(fit3, newdata=validate)
+confusionMatrix(subpred3, validate$classe)
 ```
 
 This model's accuracy was not as good, but still >99% so still more than good enough.

@@ -61,7 +61,7 @@ A side effect of trimming down the data has gotten rid of all NA values in the d
 
 ## Building a model
 
-Now split the training set into a further train/test set since we're not allowed to figure this out using the real testing data (and we have plenty of observations).
+Now split the training set into a further training and validation sets since we're not allowed to figure this out using the real testing data (and we have plenty of observations).
 
 
 ```r
@@ -86,7 +86,7 @@ table(training$classe)
 # A fairly even split, so partitioning won't have any problems.
 trainIndex <- createDataPartition(training$classe, p = 0.75, list = FALSE)
 subtrain <- training[trainIndex, ]
-subtest <- training[-trainIndex, ]
+validate <- training[-trainIndex, ]
 ```
 
 Since we're predicting a factor variable, a Decision Tree would be an appropriate tool, but due to the complexity of this problem, a Random Forest will almost certainly be better. Use 5-fold cross validation to reduce overfitting.
@@ -146,11 +146,11 @@ fit1$finalModel
 ## E    0    1    0    4 2701     0.00185
 ```
 
-Theoretically, that is an excellent model, with >99% accuracy. Let's take a look at how it performs on the sub-testing data.
+Theoretically, that is an excellent model, with >99% accuracy. Let's take a look at how it performs on the validation data.
 
 ```r
-subpred <- predict(fit1, newdata=subtest)
-confusionMatrix(subpred, subtest$classe)
+subpred <- predict(fit1, newdata=validate)
+confusionMatrix(subpred, validate$classe)
 ```
 
 ```
@@ -306,8 +306,8 @@ fit2$finalModel
 ```
 
 ```r
-subpred2 <- predict(fit2, newdata=subtest)
-confusionMatrix(subpred2, subtest$classe)
+subpred2 <- predict(fit2, newdata=validate)
+confusionMatrix(subpred2, validate$classe)
 ```
 
 ```
@@ -402,8 +402,8 @@ fit3$finalModel
 ```
 
 ```r
-subpred3 <- predict(fit3, newdata=subtest)
-confusionMatrix(subpred3, subtest$classe)
+subpred3 <- predict(fit3, newdata=validate)
+confusionMatrix(subpred3, validate$classe)
 ```
 
 ```
