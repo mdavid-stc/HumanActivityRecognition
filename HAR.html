@@ -124,11 +124,9 @@ $(document).ready(function () {
 <p>This is the course project for Practical Machine Learning.</p>
 <div id="loading-and-preprocessing-the-data" class="section level2">
 <h2>Loading and preprocessing the data</h2>
-<p>The data is assumed to be in a zip file in the same directory as this document. If it is not, download it and read it into a data frame.</p>
+<p>The data is assumed to be in a CSV file in the same directory as this document. If it is not, download it and read it into a data frame.</p>
 <pre class="r"><code>knitr::opts_chunk$set(fig.path=&#39;figure/&#39;)
 options(scipen = 1, digits = 2)
-
-setwd(&quot;/Training/DataScience/gitwork/Sec8Proj1&quot;)
 
 # Check for the presence of the data.
 trainUrl &lt;- &quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv&quot;
@@ -173,14 +171,11 @@ testing &lt;- testing[, -badvars]
 </div>
 <div id="building-a-model" class="section level2">
 <h2>Building a model</h2>
-<p>Now split the training set into a further train/test set since we’re not allowed to figure this out using the real testing data (and we have plenty of observations.</p>
-<pre class="r"><code>library(caret)</code></pre>
-<pre><code>## Loading required package: lattice</code></pre>
-<pre><code>## Loading required package: ggplot2</code></pre>
-<pre class="r"><code>library(ggplot2)
-set.seed(777)
-
-# First, check that there are enough samples in each outcome class.
+<p>Now split the training set into a further train/test set since we’re not allowed to figure this out using the real testing data (and we have plenty of observations).</p>
+<pre class="r"><code>library(caret)
+library(ggplot2)
+set.seed(777)</code></pre>
+<pre class="r"><code># First, check that there are enough samples in each outcome class.
 table(training$classe)</code></pre>
 <pre><code>## 
 ##    A    B    C    D    E 
@@ -189,19 +184,11 @@ table(training$classe)</code></pre>
 trainIndex &lt;- createDataPartition(training$classe, p = 0.75, list = FALSE)
 subtrain &lt;- training[trainIndex, ]
 subtest &lt;- training[-trainIndex, ]</code></pre>
-<p>Since we’re predicting a factor variable, a Decision Tree would be an appropriate tool, but due to the complexity of this problem, a Random Forest will almost certainly be better. Use 5-fold cross validation to try to make sure we are not overfitting.</p>
+<p>Since we’re predicting a factor variable, a Decision Tree would be an appropriate tool, but due to the complexity of this problem, a Random Forest will almost certainly be better. Use 5-fold cross validation to reduce overfitting.</p>
 <pre class="r"><code># This was taking a long time, so I added allowParallel.
-fit1 &lt;- train(classe ~ ., data=subtrain, method=&quot;rf&quot;, trControl=trainControl(method=&quot;cv&quot;, number=5), allowParallel=TRUE)</code></pre>
-<pre><code>## Loading required package: randomForest</code></pre>
-<pre><code>## randomForest 4.6-12</code></pre>
-<pre><code>## Type rfNews() to see new features/changes/bug fixes.</code></pre>
-<pre><code>## 
-## Attaching package: &#39;randomForest&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:ggplot2&#39;:
-## 
-##     margin</code></pre>
-<pre class="r"><code># Do I need prox=TRUE?
-fit1</code></pre>
+fit1 &lt;- train(classe ~ ., data=subtrain, method=&quot;rf&quot;, trControl=trainControl(method=&quot;cv&quot;, number=5), allowParallel=TRUE)
+# Do I need prox=TRUE?</code></pre>
+<pre class="r"><code>fit1</code></pre>
 <pre><code>## Random Forest 
 ## 
 ## 14718 samples
@@ -307,96 +294,19 @@ confusionMatrix(subpred, subtest$classe)</code></pre>
 <h2>Plots of Important Predictors</h2>
 <p>Let’s look at plots of the three most important variables to see how they relate to the outcome.</p>
 <pre class="r"><code>qplot(x=num_window, y=roll_belt, data = subtrain, col=classe)</code></pre>
-<p><img src="figure/unnamed-chunk-7-1.png" alt="" /><!-- --></p>
+<p><img src="figure/unnamed-chunk-9-1.png" alt="" /><!-- --></p>
 <pre class="r"><code>qplot(x=num_window, y=pitch_forearm, data = subtrain, col=classe)</code></pre>
-<p><img src="figure/unnamed-chunk-7-2.png" alt="" /><!-- --></p>
+<p><img src="figure/unnamed-chunk-9-2.png" alt="" /><!-- --></p>
 <pre class="r"><code>qplot(x=roll_belt, y=pitch_forearm, data = subtrain, col=classe)</code></pre>
-<p><img src="figure/unnamed-chunk-7-3.png" alt="" /><!-- --></p>
+<p><img src="figure/unnamed-chunk-9-3.png" alt="" /><!-- --></p>
 <p>The second plot especially shows a very strong correlation of num_window with classe <em>regardless of the y variable</em>.</p>
 </div>
 <div id="single-variable-model" class="section level2">
 <h2>Single-Variable Model</h2>
 <p>Since one general goal is always to make our models as parsimonious as possible, let’s try a model using just that predictor.</p>
 <pre class="r"><code># Doesn&#39;t make sense to cross validate with one variable, so that option is off here.
-fit2 &lt;- train(classe ~ num_window, data=subtrain, method=&quot;rf&quot;, allowParallel=TRUE)</code></pre>
-<pre><code>## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range
-
-## Warning in randomForest.default(x, y, mtry = param$mtry, ...): invalid
-## mtry: reset to within valid range</code></pre>
-<pre class="r"><code>fit2</code></pre>
+fit2 &lt;- train(classe ~ num_window, data=subtrain, method=&quot;rf&quot;, allowParallel=TRUE)
+fit2</code></pre>
 <pre><code>## Random Forest 
 ## 
 ## 14718 samples
